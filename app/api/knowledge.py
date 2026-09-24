@@ -1,0 +1,17 @@
+# 知识库文档 API 路由。
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.schemas.knowledge import KnowledgeCreate, KnowledgeOut
+from app.services.rag_service import RAGService
+
+router = APIRouter(prefix="/knowledge", tags=["Knowledge"])
+service = RAGService()
+
+@router.post("", response_model=KnowledgeOut)
+def create_document(data: KnowledgeCreate, db: Session = Depends(get_db)):
+    return service.add_document(db, data.title, data.content, data.source)
+
+@router.get("", response_model=list[KnowledgeOut])
+def list_documents(db: Session = Depends(get_db)):
+    return service.list_documents(db)

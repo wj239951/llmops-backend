@@ -1,0 +1,20 @@
+# 环境变量文件（含数据库密码、API Key，绝不提交）
+.env
+
+# Python 虚拟环境（用 requirements.txt 重建）
+.venv/
+
+# Python 字节码缓存
+__pycache__/
+*.pyc
+
+# 日志
+*.log
+
+# IDE 个人配置
+.idea/
+.vscode/
+
+# 本地数据库文件
+*.db
+*.sqlite3
