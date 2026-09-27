@@ -8,17 +8,16 @@ from app.api.chat import router as chat_router
 from app.api.prompt import router as prompt_router
 from app.api.knowledge import router as knowledge_router
 from app.api.logs import router as logs_router
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     yield
 
-app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

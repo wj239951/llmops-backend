@@ -12,7 +12,7 @@ class ChatRequest(BaseModel):
     use_rag: bool = False
     ##
     conversation_id: str | None = None# 聊天会话 ID
-    memory_enabled: bool = True# 是否启用内存
+    memory_enabled: bool = False# 是否启用内存
     ##
 class ChatResponse(BaseModel):
     answer: str

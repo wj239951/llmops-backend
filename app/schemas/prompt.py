@@ -13,6 +13,7 @@ class PromptCreate(BaseModel):
     enabled: bool = True
 
 class PromptUpdate(BaseModel):
+    name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
     model_provider: str | None = None
