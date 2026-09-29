@@ -13,6 +13,11 @@ class KnowledgeOut(BaseModel):
     content: str
     source: str | None = None
     created_at: datetime
+class KnowledgeUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    source: str | None = None
+
 
     class Config:
         from_attributes = True
