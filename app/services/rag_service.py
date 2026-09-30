@@ -1,4 +1,5 @@
 # 知识库业务逻辑，包括保存知识、检索知识、拼接上下文。##检索增强索引
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.knowledge import KnowledgeDocument
 
@@ -29,7 +30,7 @@ class RAGService:
         """根据 ID 更新知识库文档"""
         doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == knowledge_id).first()
         if not doc:
-            raise ValueError(f"知识库文档不存在，ID: {knowledge_id}")
+            raise HTTPException(status_code=404, detail=f"知识库文档不存在，ID: {knowledge_id}")
 
         if title is not None:
             doc.title = title
