@@ -17,7 +17,7 @@ class KnowledgeUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
     source: str | None = None
-
-
+class KnowledgeDelete(BaseModel):
+    knowledge_id: int
     class Config:
-        from_attributes = True
+        from_attributes  = True

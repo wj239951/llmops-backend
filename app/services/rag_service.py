@@ -41,3 +41,8 @@ class RAGService:
         db.commit()
         db.refresh(doc)
         return doc
+
+    def delete_document(self, db, knowledge_id):
+        db.query(KnowledgeDocument).filter(KnowledgeDocument.id == knowledge_id).delete()
+        db.commit()
+        return {"message": "知识库文档删除成功"}
