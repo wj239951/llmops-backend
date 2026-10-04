@@ -18,3 +18,4 @@ __pycache__/
 # 本地数据库文件
 *.db
 *.sqlite3
+chroma_db/
