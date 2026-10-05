@@ -28,23 +28,25 @@ def migrate():
         print("没有文档需要迁移")
         return
 
-    # 2. 提取文本内容（标题 + 正文，让标题也参与检索权重）
+    # 2. 提取文本内容和 metadata
     texts = [f"{doc.title}：{doc.content}" for doc in docs]
+    metadatas = [{"id": doc.id, "title": doc.title} for doc in docs]
 
     # 3. 初始化嵌入模型
     print("正在初始化 bge-m3 嵌入模型...")
     embeddings = OllamaEmbeddings(model="bge-m3")
 
-    # 4. 创建 Chroma 向量库并持久化
+    # 4. 创建 Chroma 向量库并持久化（带 metadata，方便后续通过 id 回查 MySQL）
     persist_dir = str(Path(__file__).parent.parent / "chroma_db")
     print(f"正在将 {len(texts)} 条文档转向量并存入 Chroma...")
     vectorstore = Chroma.from_texts(
         texts=texts,
         embedding=embeddings,
+        metadatas=metadatas,
         persist_directory=persist_dir
     )
 
-    # 5. 创建 Chroma 向量库并持久化
+    # 5. 持久化到磁盘
     vectorstore.persist()
     print(f"迁移完成！向量库保存在：{persist_dir}")
 
