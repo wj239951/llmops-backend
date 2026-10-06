@@ -24,4 +24,5 @@ class ChatResponse(BaseModel):
     latency_ms: int
     ##
     conversation_id: str | None = None# 聊天会话 ID
+    sources: list[dict] = []
     ##

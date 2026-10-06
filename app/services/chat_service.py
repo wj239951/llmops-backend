@@ -80,16 +80,17 @@ class ChatService:
             workflow_reasoning.append("步骤4：未启用会话记忆或无 conversation_id，本轮为独立对话。")
         ##
         final_query = req.query
+        rag_docs = []
         if req.use_rag:
-            docs = self.rag.search(db, req.query)
-            context = self.rag.build_context(docs)
+            rag_docs = self.rag.search(db, req.query)
+            context = self.rag.build_context(rag_docs)
             if context:
                 final_query = (
                     "请基于以下知识库内容回答问题。\n"
                     "如果知识库内容不足，请说明不足，再结合通用知识补充。\n\n"
                     f"{context}\n\n用户问题：{req.query}"
                 )
-                workflow_reasoning.append(f"步骤5：启用 RAG，检索到 {len(docs)} 条知识片段。")
+                workflow_reasoning.append(f"步骤5：启用 RAG，检索到 {len(rag_docs)} 条知识片段。")
             else:
                 workflow_reasoning.append("步骤5：启用 RAG，但未检索到有效知识片段。")
         else:
@@ -141,7 +142,11 @@ class ChatService:
                 "model_name": result["model_name"],
                 "total_tokens": result["total_tokens"],
                 "latency_ms": latency_ms,
-                "conversation_id": req.conversation_id,# 会话ID
+                "conversation_id": req.conversation_id,
+                "sources": [
+                    {"title": d.title, "snippet": d.content[:200], "source": d.source}
+                    for d in rag_docs
+                ],
             }
         except Exception as e:
             latency_ms = int((time.time() - start) * 1000)
