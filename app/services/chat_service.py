@@ -1,7 +1,10 @@
 # 聊天核心业务流程，负责读取 Prompt、处理 RAG、调用模型、写入日志。
 import time
+import uuid
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.chat_log import ChatLog
+from app.models.conversation import Conversation
 from app.schemas.chat import ChatRequest
 from app.services.llm_service import LLMService
 from app.services.prompt_service import PromptService
@@ -14,6 +17,8 @@ class ChatService:
         self.llm = LLMService()
         self.prompt_service = PromptService()
         self.rag = RAGService()
+    def new_conversation_id(self) -> str:
+        return str(uuid.uuid4())
     ##会话记忆
     def _load_history(self, db: Session, conversation_id: str | None, limit: int) -> list[dict]:
         # 从 ChatLog 中读取同一会话最近若干轮成功对话，作为上下文记忆。
@@ -36,6 +41,20 @@ class ChatService:
             if log.assistant_output:
                 history.append({"role": "assistant", "content": log.assistant_output})
         return history
+    ##
+    def _ensure_conversation(self, db: Session, conversation_id: str | None, query: str):
+        # 确保 conversations 表中有该会话记录；首次对话时自动用问题前30字做标题。
+        if not conversation_id:
+            return
+        conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conv:
+            title = query[:30] if len(query) > 30 else query
+            conv = Conversation(id=conversation_id, title=title)
+            db.add(conv)
+        elif conv.title == "新会话":
+            conv.title = query[:30] if len(query) > 30 else query
+        conv.updated_at = datetime.utcnow()
+        db.commit()
     ##
     def chat(self, db: Session, req: ChatRequest):
         start = time.time()
@@ -125,6 +144,7 @@ class ChatService:
                 )
             )
             db.commit()
+            self._ensure_conversation(db, req.conversation_id, req.query)
             workflow_reasoning.append("步骤7：模型回答生成完成。")
             workflow_reasoning.append("步骤8：将调用日志写入数据库。")
             workflow_reasoning.append(f"步骤9：本次调用耗时 {latency_ms} ms。")

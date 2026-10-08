@@ -24,4 +24,5 @@ def init_db():
     import app.models.prompt  # noqa: F401
     import app.models.knowledge  # noqa: F401
     import app.models.chat_log  # noqa: F401
+    import app.models.conversation  # noqa: F401
     Base.metadata.create_all(bind=engine)

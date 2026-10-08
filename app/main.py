@@ -8,6 +8,7 @@ from app.api.chat import router as chat_router
 from app.api.prompt import router as prompt_router
 from app.api.knowledge import router as knowledge_router
 from app.api.logs import router as logs_router
+from app.api.conversations import router as conversations_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -40,3 +41,4 @@ app.include_router(chat_router, prefix=settings.API_PREFIX)
 app.include_router(prompt_router, prefix=settings.API_PREFIX)
 app.include_router(knowledge_router, prefix=settings.API_PREFIX)
 app.include_router(logs_router, prefix=settings.API_PREFIX)
+app.include_router(conversations_router, prefix=settings.API_PREFIX)

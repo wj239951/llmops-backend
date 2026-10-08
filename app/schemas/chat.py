@@ -1,5 +1,5 @@
 # 聊天请求、返回数据结构。
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 class ChatRequest(BaseModel):
     query: str
@@ -14,6 +14,12 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None# 聊天会话 ID
     memory_enabled: bool = False# 是否启用内存
     ##
+
+    @field_validator("conversation_id", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: str | None) -> str | None:
+        return v or None
+
 class ChatResponse(BaseModel):
     answer: str
     reasoning: str | None = None
