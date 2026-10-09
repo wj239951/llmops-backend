@@ -148,11 +148,12 @@ class ChatService:
             workflow_reasoning.append("步骤7：模型回答生成完成。")
             workflow_reasoning.append("步骤8：将调用日志写入数据库。")
             workflow_reasoning.append(f"步骤9：本次调用耗时 {latency_ms} ms。")
-            thought = (
-                "已调用本地 Ollama 模型 deepseek-r1:7b，并完成 Prompt/RAG/会话记忆/日志流程。"
-                if result["model_provider"] == "ollama"
-                else "已调用 DeepSeek 云端 API 模式，并完成 Prompt/RAG/会话记忆/日志流程。"
-            )
+            if result["model_provider"] == "ollama":
+                thought = "已调用本地 Ollama 模型 deepseek-r1:7b，并完成 Prompt/RAG/会话记忆/日志流程。"
+            elif result["model_provider"] == "deepseek":
+                thought = "已调用 DeepSeek 云端 API 模式，并完成 Prompt/RAG/会话记忆/日志流程。"
+            else:
+                thought = "已调用 Qoder 云端 Agent 模式，并完成 Prompt/RAG/会话记忆/日志流程。"
             reasoning = result.get("reasoning") or "\n".join(workflow_reasoning)
             return {
                 "answer": result["answer"],
