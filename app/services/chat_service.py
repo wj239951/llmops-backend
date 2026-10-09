@@ -151,7 +151,7 @@ class ChatService:
             thought = (
                 "已调用本地 Ollama 模型 deepseek-r1:7b，并完成 Prompt/RAG/会话记忆/日志流程。"
                 if result["model_provider"] == "ollama"
-                else "已调用 ChatGPT/OpenAI Key 模式，并完成 Prompt/RAG/会话记忆/日志流程。"
+                else "已调用 DeepSeek 云端 API 模式，并完成 Prompt/RAG/会话记忆/日志流程。"
             )
             reasoning = result.get("reasoning") or "\n".join(workflow_reasoning)
             return {

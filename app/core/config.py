@@ -1,4 +1,4 @@
-# 读取 .env 配置，统一管理数据库地址、 Ollama 地址、 OpenAI Key 。
+# 读取 .env 配置，统一管理数据库地址、 Ollama 地址、 DeepSeek Key 。
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     DEFAULT_MODEL_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "deepseek-r1:7b"
-    OPENAI_API_KEY: str = ""
-    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+    DEEPSEEK_MODEL: str = "deepseek-v4-pro"
     MEMORY_MAX_TURNS: int = 10
 
     @property

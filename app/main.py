@@ -32,7 +32,7 @@ def root():
         "database": "MySQL 8.x",
         "local_model": settings.OLLAMA_MODEL,
         "ollama_base_url": settings.OLLAMA_BASE_URL,
-        "chatgpt_mode": "OpenAI API Key",
+        "deepseek_mode": "DeepSeek API",
         "docker": False,
         "virtual_machine": False,
     }
