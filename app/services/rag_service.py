@@ -1,4 +1,5 @@
 # 知识库业务逻辑，包括保存知识、检索知识、拼接上下文。##检索增强索引
+from dataclasses import dataclass
 from fastapi import HTTPException
 #from langchain_community import embeddings
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from app.models.knowledge import KnowledgeDocument
 #from sqlalchemy import or_
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 #import jieba
 import os
@@ -13,9 +15,24 @@ import os
 # 在文件顶部读取
 stop_words_file = os.path.join(str(os.path.dirname(__file__)), "Disable_word_list.txt")
 embeddings = OllamaEmbeddings(model="bge-m3")
-vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings, collection_name="knowledge_bge_m3")
+# 长文档切分成小片段再向量化：既能避免超出 bge-m3 上下文长度，又能让检索命中更精准的段落。
+# separators 加了中文标点，优先在句子边界切分。
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,
+    chunk_overlap=50,
+    separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""],
+)
 with open(stop_words_file, encoding="utf-8") as f:
     stop_words = set(f.read().split())
+
+
+@dataclass
+class RetrievedChunk:
+    """检索命中的知识片段。content 是切分后的片段原文，不是整篇文档。"""
+    title: str
+    content: str
+    source: str | None
 
 
 class RAGService:
@@ -51,12 +68,19 @@ class RAGService:
     def search(self, db: Session, query: str, limit: int = 3):
         if not query.strip():
             return []
-        results = vectorstore.similarity_search(query, k=limit)  #找到与查询向量距离最近的top-k篇文档
-        return [doc for r in results if (doc := self._convert_to_knowledge_doc(db, r)) is not None]
+        # 检索的是文档切分后的片段(chunk)，命中更精准；返回片段原文而非整篇文档
+        results = vectorstore.similarity_search(query, k=limit)
+        chunks = []
+        for r in results:
+            doc = self._convert_to_knowledge_doc(db, r)
+            if doc is None:
+                continue
+            chunks.append(RetrievedChunk(title=doc.title, content=r.page_content, source=doc.source))
+        return chunks
 
     def build_context(self, docs):
         return "\n\n".join(
-            f"[知识片段{i}] 标题：{doc.title}\n内容：{doc.content[:1200]}"
+            f"[知识片段{i}] 标题：{doc.title}\n内容：{doc.content}"
             for i, doc in enumerate(docs, start=1)
         )
 
@@ -76,14 +100,15 @@ class RAGService:
 
         db.commit()
         db.refresh(doc)
-        vectorstore._collection.delete(ids=[str(knowledge_id)])
+        # 一篇文档对应多个 chunk 向量，按 metadata 里的文档 id 删除它的全部片段
+        vectorstore._collection.delete(where={"id": knowledge_id})
         self._sync_to_chroma(doc)
         return doc
 
     def delete_document(self, db, knowledge_id):
         db.query(KnowledgeDocument).filter(KnowledgeDocument.id == knowledge_id).delete()
         db.commit()
-        vectorstore._collection.delete(ids=[str(knowledge_id)])
+        vectorstore._collection.delete(where={"id": knowledge_id})
         return {"message": "知识库文档删除成功"}
 
     def _convert_to_knowledge_doc(self, db: Session, r):
@@ -98,12 +123,17 @@ class RAGService:
         return db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
 
     def _sync_to_chroma(self, doc):
-        """把一条知识库文档写入/更新到 Chroma 向量库，用 MySQL id 作为 Chroma 文档 id"""
+        """把一条知识库文档切分成片段后写入 Chroma，每个片段一个向量；片段 id 用 '文档id_序号'"""
         text = f"{doc.title}：{doc.content}"
-        metadata = {"id": doc.id, "title": doc.title}
-        vectorstore._collection.add(
-            ids=[str(doc.id)],
-            documents=[text],
-            metadatas=[metadata],
+        chunks = text_splitter.split_text(text)
+        ids = [f"{doc.id}_{i}" for i in range(len(chunks))]
+        # metadata 里的 id 存 MySQL 主键，检索时用它反查文档；chunk 记录片段序号
+        metadatas = [{"id": doc.id, "title": doc.title, "chunk": i} for i in range(len(chunks))]
+        # 必须走 LangChain 包装层的 add_texts，它才会用配置的 bge-m3(1024维) 生成向量；
+        # 若直接调 _collection.add(documents=...)，chromadb 会用自带的默认模型(384维)，导致读写维度不一致。
+        vectorstore.add_texts(
+            texts=chunks,
+            metadatas=metadatas,
+            ids=ids,
         )
         

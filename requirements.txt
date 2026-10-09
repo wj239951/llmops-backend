@@ -9,3 +9,5 @@ python-dotenv
 jieba
 langchain-community
 chromadb
+PyMuPDF
+python-multipart
