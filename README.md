@@ -134,8 +134,6 @@ llmops-backend/
 │       ├── prompt_service.py   # Prompt CRUD
 │       ├── file_parser.py      # 文件解析（PDF / TXT / MD / PY / JSON）
 │       └── Disable_word_list.txt  # 停用词表（关键词检索方案使用）
-├── scripts/
-│   └── migrate_to_chroma.py    # 把 MySQL 已有文档批量迁移进 Chroma
 ├── .env.example                # 环境变量模板（真实 .env 已被 gitignore）
 ├── requirements.txt
 └── run.py                      # 启动入口（uvicorn，端口 8000）
@@ -361,15 +359,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - 接口地址：`http://127.0.0.1:8000`
 - 接口文档（Swagger UI）：`http://127.0.0.1:8000/docs`
 
-**6.（可选）迁移历史文档进向量库**
-
-如果 MySQL 里已经有知识库文档（例如从旧的关键词检索版本升级过来），执行一次迁移脚本即可把全部文档切分并写入 Chroma：
-
-```bash
-python scripts/migrate_to_chroma.py
-```
-
-**7. 配合前端使用**
+**6. 配合前端使用**
 
 克隆并启动前端仓库 [llmops-frontend](https://github.com/wj239951/llmops-frontend)，前端默认访问本服务。后端的 CORS 已放行 `http://localhost:5173` 与 `http://localhost:5174`。
 
