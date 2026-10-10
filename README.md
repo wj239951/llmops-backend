@@ -2,7 +2,7 @@
 
 基于 **FastAPI** 的一站式大模型应用平台后端，提供 **Prompt 管理、知识库问答（RAG）、多模型对话、会话记忆、运行日志** 五大模块的 REST API。
 
-支持 **本地 Ollama 小模型** 与 **DeepSeek / Qoder 云端 API** 双通道切换，RAG 检索基于 **bge-m3 embedding + Chroma 向量库** 实现语义检索。
+支持 **本地 Ollama 小模型** 与 **DeepSeek 云端 API** 双通道切换，RAG 检索基于 **bge-m3 embedding + Chroma 向量库** 实现语义检索。
 
 > 配套前端仓库：[llmops-frontend](https://github.com/wj239951/llmops-frontend)（Vue3 + TypeScript + Element Plus）
 
@@ -28,7 +28,7 @@
 | 能力 | 实现要点 |
 | --- | --- |
 | **RAG 检索增强问答** | LangChain + Chroma 向量库 + bge-m3 embedding，长文档按 500 字 / 重叠 50 字切分（中文标点优先断句），知识库 CRUD 后向量库自动同步，回答返回引用来源 |
-| **多模型双通道** | 抽象统一调用层，`ollama` / `deepseek` / `qoder` 三种 provider 按需切换，同一套业务代码不改 |
+| **多模型双通道** | 抽象统一调用层，`ollama` / `deepseek` 两种 provider 按需切换，同一套业务代码不改 |
 | **会话记忆** | 自设计 `ChatLog + conversation_id` 方案，按会话加载最近 N 轮历史作为上下文；首次提问自动生成会话标题 |
 | **运行日志** | 记录 token 消耗、响应耗时、成功/失败状态与错误信息，支持分页与状态过滤 |
 | **Prompt 管理** | Prompt 模板 CRUD，模板内可绑定模型、temperature、top_p，对话时一键套用 |
@@ -74,7 +74,6 @@
 │ 模型通道层                                                   │
 │   OllamaService（本地 deepseek-r1:7b）                        │
 │   DeepSeekService（DeepSeek 云端 API，兼容 OpenAI SDK）        │
-│   QoderService（Qoder 云端 Agent）                            │
 ├──────────────────────────────────────────────────────────────┤
 │ 持久层                                                       │
 │   SQLAlchemy ──► MySQL（4 张业务表）                          │
@@ -129,7 +128,6 @@ llmops-backend/
 │       ├── llm_service.py      # 模型通道统一分发
 │       ├── ollama_service.py   # 本地 Ollama 调用
 │       ├── deepseek_service.py # DeepSeek 云端调用
-│       ├── qoder_service.py    # Qoder 云端调用
 │       ├── rag_service.py      # 向量检索 + 上下文拼接 + Chroma 同步
 │       ├── prompt_service.py   # Prompt CRUD
 │       ├── file_parser.py      # 文件解析（PDF / TXT / MD / PY / JSON）
@@ -383,11 +381,9 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 | `DEEPSEEK_API_KEY` | 空 | DeepSeek Key（不填则只有本地通道） |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 接口地址 |
 | `DEEPSEEK_MODEL` | `deepseek-v4-pro` | 云端模型；官方通用模型为 `deepseek-chat`、带思考链为 `deepseek-reasoner`，按需在 `.env` 覆盖 |
-| `QODER_API_KEY` | 空 | Qoder 个人访问令牌（可选通道） |
-| `QODER_BASE_URL` | `https://api.qoder.com.cn` | Qoder 网关 |
-| `QODER_MODEL` | `qoder-cloud-agent` | Qoder 模型 |
-| `QODER_TIMEOUT` | `180` | Qoder 轮询超时（秒） |
-| `QODER_AGENT_MODEL` / `QODER_AGENT_ID` / `QODER_ENVIRONMENT_ID` | `ultimate` / 空 / 空 | Qoder 建 agent 用的档位与资源 ID，留空则自动取账号下第一个 |
+| `EMBEDDING_PROVIDER` | `ollama` | 向量化通道：`ollama`（本地）/ `siliconflow`（云端，无 Ollama 时用） |
+| `SILICONFLOW_API_KEY` | 空 | 硅基流动 Key（仅 `EMBEDDING_PROVIDER=siliconflow` 时需要） |
+| `SILICONFLOW_EMBEDDING_MODEL` | `BAAI/bge-m3` | 硅基向量化模型，与 Ollama bge-m3 同权重、向量兼容 |
 | `MEMORY_MAX_TURNS` | `10` | 会话记忆加载的最大历史轮数 |
 
 > ⚠️ **安全提示**：`.env` 已在 `.gitignore` 中，请勿提交真实密钥。仓库内只保留 `.env.example` 占位模板。
@@ -433,7 +429,7 @@ Chroma 有两种写入方式，维度行为不同：
 
 ### 4. 多模型通道抽象
 
-`LLMService.chat()` 是唯一的模型调用出口，按 `provider` 分发到 `OllamaService` / `DeepSeekService` / `QoderService`，三者签名一致（`query, system_prompt, model_name, temperature, top_p, history`），返回值统一为：
+`LLMService.chat()` 是唯一的模型调用出口，按 `provider` 分发到 `OllamaService` / `DeepSeekService`，二者签名一致（`query, system_prompt, model_name, temperature, top_p, history`），返回值统一为：
 
 ```python
 {

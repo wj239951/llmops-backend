@@ -7,6 +7,9 @@ from app.models.knowledge import KnowledgeDocument
 #from sqlalchemy import or_
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_core.embeddings import Embeddings
+from openai import OpenAI
+from app.core.config import settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 #import jieba
@@ -14,7 +17,39 @@ import os
 
 # 在文件顶部读取
 stop_words_file = os.path.join(str(os.path.dirname(__file__)), "Disable_word_list.txt")
-embeddings = OllamaEmbeddings(model="bge-m3")
+
+
+class SiliconFlowEmbeddings(Embeddings):
+    """硅基流动 bge-m3 向量化。直接用 openai 客户端对接其 OpenAI 兼容端点,
+    避开 langchain OpenAIEmbeddings 对 tiktoken/transformers 的依赖(容器里都没装)。"""
+
+    def __init__(self, model: str, base_url: str, api_key: str):
+        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        self._model = model
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        resp = self._client.embeddings.create(model=self._model, input=list(texts))
+        return [d.embedding for d in resp.data]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+
+def _build_embeddings():
+    # 按部署环境选向量化通道:本地有 Ollama 走它;云上没 Ollama 走硅基流动(同 bge-m3 权重,老向量兼容)
+    if settings.EMBEDDING_PROVIDER == "siliconflow":
+        return SiliconFlowEmbeddings(
+            model=settings.SILICONFLOW_EMBEDDING_MODEL,
+            base_url=settings.SILICONFLOW_EMBEDDING_BASE_URL,
+            api_key=settings.SILICONFLOW_API_KEY,
+        )
+    return OllamaEmbeddings(
+        model=settings.OLLAMA_EMBEDDING_MODEL,
+        base_url=settings.OLLAMA_EMBEDDING_BASE_URL,
+    )
+
+
+embeddings = _build_embeddings()
 vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings, collection_name="knowledge_bge_m3")
 # 长文档切分成小片段再向量化：既能避免超出 bge-m3 上下文长度，又能让检索命中更精准的段落。
 # separators 加了中文标点，优先在句子边界切分。
