@@ -1,0 +1,18 @@
+# 敏感文件绝不进镜像（DeepSeek key、数据库密码都在这）
+.env
+
+# 虚拟环境：镜像里用 pip 重新装，不拷本地的
+.venv/
+
+# 向量库数据：运行时由 docker volume 挂载持久化，不打进镜像
+chroma_db/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# git / IDE
+.git/
+.idea/
+.vscode/
