@@ -1,9 +1,10 @@
 # FastAPI 主入口，注册路由、配置 CORS、启动时初始化数据库。
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.security import require_auth
 from app.api.chat import router as chat_router
 from app.api.prompt import router as prompt_router
 from app.api.knowledge import router as knowledge_router
@@ -37,8 +38,8 @@ def root():
         "virtual_machine": False,
     }
 
-app.include_router(chat_router, prefix=settings.API_PREFIX)
-app.include_router(prompt_router, prefix=settings.API_PREFIX)
-app.include_router(knowledge_router, prefix=settings.API_PREFIX)
-app.include_router(logs_router, prefix=settings.API_PREFIX)
-app.include_router(conversations_router, prefix=settings.API_PREFIX)
+app.include_router(chat_router, prefix=settings.API_PREFIX, dependencies=[Depends(require_auth)])
+app.include_router(prompt_router, prefix=settings.API_PREFIX, dependencies=[Depends(require_auth)])
+app.include_router(knowledge_router, prefix=settings.API_PREFIX, dependencies=[Depends(require_auth)])
+app.include_router(logs_router, prefix=settings.API_PREFIX, dependencies=[Depends(require_auth)])
+app.include_router(conversations_router, prefix=settings.API_PREFIX, dependencies=[Depends(require_auth)])

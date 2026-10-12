@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-v4-pro"
+    DEMO_PASSWORD: str = "demo2026"  # 演示口令（前后端一致）
     MEMORY_MAX_TURNS: int = 10
 
     # embedding provider 开关:"ollama" | "siliconflow"
