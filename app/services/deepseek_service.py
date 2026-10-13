@@ -22,6 +22,7 @@ class DeepSeekService:
             messages=messages,
             temperature=temperature,
             top_p=top_p,
+            timeout=100,
         )
         message = response.choices[0].message
         answer = message.content or ""

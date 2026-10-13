@@ -119,7 +119,7 @@ class OllamaService:
                     "top_p": top_p,
                 },
             },
-            timeout=300,
+            timeout=120,
         )
         if response.status_code != 200:
             raise RuntimeError(
