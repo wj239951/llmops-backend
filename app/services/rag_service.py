@@ -11,12 +11,15 @@ from langchain_core.embeddings import Embeddings
 from openai import OpenAI
 from app.core.config import settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
+import chromadb
 #import jieba
+import logging
 import os
 
 # 在文件顶部读取
 stop_words_file = os.path.join(str(os.path.dirname(__file__)), "Disable_word_list.txt")
+
+logger = logging.getLogger(__name__)
 
 
 class SiliconFlowEmbeddings(Embeddings):
@@ -49,8 +52,42 @@ def _build_embeddings():
     )
 
 
+# 必须在 _open_vectorstore() 之前实例化，后者引用它
 embeddings = _build_embeddings()
-vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embeddings, collection_name="knowledge_bge_m3")
+
+# chroma_db 绝对路径：不依赖进程 CWD，从任意目录启动都能定位到同一个库
+_CHROMA_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "chroma_db",
+)
+
+_COLLECTION = "knowledge_bge_m3"
+_SPACE = {"hnsw:space": "cosine"}
+
+
+def _open_vectorstore():
+    """打开/重建向量库。space 只在建 collection 时生效，旧 space 改不了，必须重建。"""
+    client = chromadb.PersistentClient(path=_CHROMA_DIR)
+    try:
+        col = client.get_collection(_COLLECTION)
+    except Exception:
+        col = None
+    if col is not None and (col.metadata or {}).get("hnsw:space") != "cosine":
+        print(f"[rag_service] collection '{_COLLECTION}' 是旧 l2 空间，删除重建为 cosine。")
+        client.delete_collection(_COLLECTION)   # 只有确认 space 不对才删
+        col = None
+    if col is None:
+        client.create_collection(_COLLECTION, metadata=_SPACE)
+        print(f"[rag_service] 已创建 cosine collection '{_COLLECTION}'；"
+              f"向量需从 MySQL 重新灌：migrate_to_chroma.py --apply。")
+    return Chroma(
+        client=client,
+        collection_name=_COLLECTION,
+        embedding_function=embeddings,
+    )
+
+
+vectorstore = _open_vectorstore()
 # 长文档切分成小片段再向量化：既能避免超出 bge-m3 上下文长度，又能让检索命中更精准的段落。
 # separators 加了中文标点，优先在句子边界切分。
 text_splitter = RecursiveCharacterTextSplitter(
@@ -64,10 +101,10 @@ with open(stop_words_file, encoding="utf-8") as f:
 
 @dataclass
 class RetrievedChunk:
-    """检索命中的知识片段。content 是切分后的片段原文，不是整篇文档。"""
     title: str
     content: str
     source: str | None
+    score: float          # cosine 相似度（= 1 - distance），越大越相关
 
 
 class RAGService:
@@ -100,17 +137,27 @@ class RAGService:
     #         scored.append((score, doc))
     #     scored.sort(key=lambda x: x[0], reverse=True)
     #     return [doc for _, doc in scored[:limit]]
+    # search() 换成带分数的检索
     def search(self, db: Session, query: str, limit: int = 3):
         if not query.strip():
             return []
-        # 检索的是文档切分后的片段(chunk)，命中更精准；返回片段原文而非整篇文档
-        results = vectorstore.similarity_search(query, k=limit)
+        results = vectorstore.similarity_search_with_score(query, k=limit)
         chunks = []
-        for r in results:
+        for r, score in results:
             doc = self._convert_to_knowledge_doc(db, r)
             if doc is None:
+                # 命中但反查 MySQL 失败 = 孤儿向量（文档已删但向量没删干净）。
+                # 不静默跳过，记 warning，否则和"真·未命中"在日志里长得一样、没法排查。
+                logger.warning(
+                    "RAG 命中片段在 MySQL 中找不到对应文档，已跳过（疑似孤儿向量，"
+                    "建议清理 Chroma 里对应 id 的向量）：metadata=%s",
+                    dict(r.metadata or {}),
+                )
                 continue
-            chunks.append(RetrievedChunk(title=doc.title, content=r.page_content, source=doc.source))
+            chunks.append(RetrievedChunk(
+                title=doc.title, content=r.page_content, source=doc.source,
+                score=float(1.0 - score),  # distance → cosine：越大越相关，方便直接跟阈值比
+            ))
         return chunks
 
     def build_context(self, docs):
@@ -159,7 +206,10 @@ class RAGService:
 
     def _sync_to_chroma(self, doc):
         """把一条知识库文档切分成片段后写入 Chroma，每个片段一个向量；片段 id 用 '文档id_序号'"""
-        text = f"{doc.title}：{doc.content}"
+        # 只向量化正文，不拼标题前缀：标题已通过 metadata 反查 + build_context 单独展示。
+        # 之前 f"{doc.title}：{doc.content}" 会让每条向量共享同一段标题开头，
+        # 结构性抬高 cosine 基线（"查询全挤在 0.36–0.44" 的第三个原因）。
+        text = doc.content
         chunks = text_splitter.split_text(text)
         ids = [f"{doc.id}_{i}" for i in range(len(chunks))]
         # metadata 里的 id 存 MySQL 主键，检索时用它反查文档；chunk 记录片段序号

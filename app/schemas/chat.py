@@ -29,6 +29,7 @@ class ChatResponse(BaseModel):
     total_tokens: int
     latency_ms: int
     ##
-    conversation_id: str | None = None# 聊天会话 ID
-    sources: list[dict] = []
+    conversation_id: str | None = None
+    rag_status: str = "off"  # off / no_hit / hit —— 不要让前端靠 sources 是否为空反推
+    sources: list[dict] = []  # 每个元素带 score
     ##

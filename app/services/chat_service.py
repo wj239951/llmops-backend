@@ -11,6 +11,10 @@ from app.services.prompt_service import PromptService
 from app.services.rag_service import RAGService
 from app.core.config import settings
 
+# RAG 命中阈值（cosine 相似度，越大越相关）。
+# 由 Desktop/test/threshold_calibration.py 在 10 篇文档上实测标定：安全区间 0.50~0.56，取中间 0.53。
+RAG_HIT_FLOOR = 0.53
+
 class ChatService:
 
     def __init__(self):
@@ -100,10 +104,15 @@ class ChatService:
         ##
         final_query = req.query
         rag_docs = []
+        rag_status = "off"
+
         if req.use_rag:
             rag_docs = self.rag.search(db, req.query)
+            # 命中阈值：cosine >= RAG_HIT_FLOOR 才保留（search 返回的 score 已是 cosine，越大越相关）
+            rag_docs = [d for d in rag_docs if d.score >= RAG_HIT_FLOOR]
             context = self.rag.build_context(rag_docs)
             if context:
+                rag_status = "hit"
                 final_query = (
                     "请基于以下知识库内容回答问题。\n"
                     "如果知识库内容不足，请说明不足，再结合通用知识补充。\n\n"
@@ -111,7 +120,8 @@ class ChatService:
                 )
                 workflow_reasoning.append(f"步骤5：启用 RAG，检索到 {len(rag_docs)} 条知识片段。")
             else:
-                workflow_reasoning.append("步骤5：启用 RAG，但未检索到有效知识片段。")
+                rag_status = "no_hit"
+                workflow_reasoning.append("步骤5：启用 RAG，但未检索到有效知识片段（本次回答不含知识库内容）。")
         else:
             workflow_reasoning.append("步骤5：未启用 RAG，直接调用模型。")
 
@@ -162,8 +172,9 @@ class ChatService:
                 "total_tokens": result["total_tokens"],
                 "latency_ms": latency_ms,
                 "conversation_id": req.conversation_id,
+                "rag_status": rag_status,
                 "sources": [
-                    {"title": d.title, "snippet": d.content[:200], "source": d.source}
+                    {"title": d.title, "snippet": d.content[:200], "source": d.source, "score": d.score}
                     for d in rag_docs
                 ],
             }
