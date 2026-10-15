@@ -12,9 +12,6 @@ from app.services.rag_service import RAGService
 from app.core.config import settings
 
 # RAG 命中阈值（cosine 相似度，越大越相关）。
-# 由 Desktop/test/threshold_calibration.py 在 10 篇文档上实测标定：安全区间 0.50~0.56，取中间 0.53。
-RAG_HIT_FLOOR = 0.53
-
 class ChatService:
 
     def __init__(self):
@@ -108,8 +105,8 @@ class ChatService:
 
         if req.use_rag:
             rag_docs = self.rag.search(db, req.query)
-            # 命中阈值：cosine >= RAG_HIT_FLOOR 才保留（search 返回的 score 已是 cosine，越大越相关）
-            rag_docs = [d for d in rag_docs if d.score >= RAG_HIT_FLOOR]
+            # 命中阈值：cosine >= settings.RAG_SCORE_THRESHOLD 才保留（search 返回的 score 已是 cosine，越大越相关）
+            rag_docs = [d for d in rag_docs if d.score >= settings.RAG_SCORE_THRESHOLD]
             context = self.rag.build_context(rag_docs)
             if context:
                 rag_status = "hit"
