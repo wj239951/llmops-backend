@@ -13,3 +13,5 @@ langchain-text-splitters
 chromadb
 PyMuPDF
 python-multipart
+pytest
+httpx
